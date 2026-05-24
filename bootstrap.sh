@@ -54,3 +54,12 @@ echo ""
 echo "Done! Open a new terminal (or run: exec zsh) to load the new shell."
 
 #: }}}
+
+
+#: Neovim directories {{{
+
+echo ""
+echo "Creating neovim backup/swap/undo directories..."
+mkdir -p ~/.vim/backups ~/.vim/swaps ~/.vim/undo
+
+#: }}}

@@ -110,9 +110,10 @@ require('lazy').setup({
           'markdown', 'markdown_inline',
           'python', 'typescript', 'tsx', 'rust', 'lua',
         },
+        auto_install = true,  -- install missing parsers when opening a file
       })
       vim.opt.foldmethod = 'expr'
-      vim.opt.foldexpr   = 'nvim_treesitter#foldexpr()'
+      vim.opt.foldexpr   = 'v:lua.vim.treesitter.foldexpr()'
       vim.opt.foldenable = false  -- open all folds by default
     end,
   },
@@ -143,6 +144,7 @@ require('lazy').setup({
           'pyright',        -- Python
           'ts_ls',          -- TypeScript / JavaScript
           'rust_analyzer',  -- Rust
+          'lua_ls',         -- Lua
         },
         automatic_installation = true,
       })
@@ -150,10 +152,10 @@ require('lazy').setup({
       local capabilities = require('cmp_nvim_lsp').default_capabilities()
 
       -- Configure each server using nvim 0.11+ native API
-      for _, server in ipairs({ 'pyright', 'ts_ls', 'rust_analyzer' }) do
+      for _, server in ipairs({ 'pyright', 'ts_ls', 'rust_analyzer', 'lua_ls' }) do
         vim.lsp.config(server, { capabilities = capabilities })
       end
-      vim.lsp.enable({ 'pyright', 'ts_ls', 'rust_analyzer' })
+      vim.lsp.enable({ 'pyright', 'ts_ls', 'rust_analyzer', 'lua_ls' })
 
       -- Keymaps applied when any LSP attaches to a buffer
       vim.api.nvim_create_autocmd('LspAttach', {
@@ -199,6 +201,18 @@ require('lazy').setup({
           { name = 'buffer' },
           { name = 'path' },
         }),
+      })
+    end,
+  },
+
+  -- Statusline with mode colors
+  {
+    'nvim-lualine/lualine.nvim',
+    config = function()
+      require('lualine').setup({
+        options = {
+          theme = 'auto',
+        },
       })
     end,
   },
