@@ -6,7 +6,31 @@ DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE}")" && pwd)"
 #: Dependencies {{{
 
 echo "Installing dependencies..."
-sudo apt install -y zsh neovim git stow tree
+sudo apt install -y zsh neovim git stow tree curl
+
+# zsh-autosuggestions
+if [ ! -d "$HOME/.zsh/zsh-autosuggestions" ]; then
+    echo "Installing zsh-autosuggestions..."
+    git clone https://github.com/zsh-users/zsh-autosuggestions "$HOME/.zsh/zsh-autosuggestions"
+else
+    echo "zsh-autosuggestions already installed."
+fi
+
+# zsh-syntax-highlighting
+if [ ! -d "$HOME/.zsh/zsh-syntax-highlighting" ]; then
+    echo "Installing zsh-syntax-highlighting..."
+    git clone https://github.com/zsh-users/zsh-syntax-highlighting "$HOME/.zsh/zsh-syntax-highlighting"
+else
+    echo "zsh-syntax-highlighting already installed."
+fi
+
+# starship
+if ! command -v starship &>/dev/null; then
+    echo "Installing starship..."
+    curl -sS https://starship.rs/install.sh | sh -s -- --yes
+else
+    echo "starship already installed."
+fi
 
 #: }}}
 
