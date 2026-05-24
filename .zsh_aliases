@@ -1,0 +1,17 @@
+#: Global aliases {{{
+
+alias -g G='| grep'
+alias -g L='| less'
+
+#: }}}
+
+
+#: Suffix aliases {{{
+
+alias -s pdf=zathura
+_show_image() { kitten icat "$@" }
+alias -s {png,jpg,jpeg}=_show_image
+
+#: }}}
+
+# vim: foldmethod=marker
