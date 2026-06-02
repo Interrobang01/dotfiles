@@ -141,3 +141,6 @@ echo "Creating neovim backup/swap/undo directories..."
 mkdir -p ~/.vim/backups ~/.vim/swaps ~/.vim/undo
 
 #: }}}
+
+echo "Starting neovim..."
+nvim
