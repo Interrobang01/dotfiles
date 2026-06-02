@@ -1,0 +1,14 @@
+# Lite starship config: identical to starship's defaults EXCEPT the modules
+# that shell out to interpreters or scan the working tree, which lag badly on
+# slow hardware (e.g. a Raspberry Pi reached over SSH).
+#
+# Activated by setting STARSHIP_NODE=0 in the environment; see .zshrc, which
+# points STARSHIP_CONFIG here in that case.
+
+# Runs `node --version` on every prompt in any dir with JS markers.
+[nodejs]
+disabled = true
+
+# Reads package.json / Cargo.toml / etc. to show a package version.
+[package]
+disabled = true

@@ -120,19 +120,26 @@ vim.opt.rtp:prepend(lazypath)
 -- Plugins
 -- ============================================================
 
-require('lazy').setup({
+-- Core plugins: always loaded. These need no external toolchain beyond a
+-- C compiler for treesitter parsers (installed by bootstrap.sh).
+local plugins = {
 
-    -- Treesitter: syntax highlighting and code folding
+    -- Treesitter: syntax highlighting and code folding.
+    -- Pinned to the `master` branch: its API (nvim-treesitter.configs) is what
+    -- this config targets. The `main` branch is a rewrite with a different,
+    -- incompatible setup API.
     {
         'nvim-treesitter/nvim-treesitter',
+        branch = 'master',
         build = ':TSUpdate',
         config = function()
-            require('nvim-treesitter').setup({
+            require('nvim-treesitter.configs').setup({
                 ensure_installed = {
                     'markdown', 'markdown_inline',
                     'python', 'typescript', 'tsx', 'rust', 'lua',
                 },
                 auto_install = true, -- install missing parsers when opening a file
+                highlight = { enable = true },
             })
             vim.opt.foldmethod = 'expr'
             vim.opt.foldexpr   = 'v:lua.vim.treesitter.foldexpr()'
@@ -148,85 +155,6 @@ require('lazy').setup({
         end,
     },
 
-    -- Mason: installs language servers, linters, formatters
-    {
-        'williamboman/mason.nvim',
-        config = function()
-            require('mason').setup()
-        end,
-    },
-
-    -- Bridges mason and nvim's native LSP so installed servers auto-configure
-    {
-        'williamboman/mason-lspconfig.nvim',
-        dependencies = { 'williamboman/mason.nvim', 'neovim/nvim-lspconfig' },
-        config = function()
-            require('mason-lspconfig').setup({
-                ensure_installed = {
-                    'pyright',       -- Python
-                    'ts_ls',         -- TypeScript / JavaScript
-                    'rust_analyzer', -- Rust
-                    'lua_ls',        -- Lua
-                },
-                automatic_installation = true,
-            })
-
-            local capabilities = require('cmp_nvim_lsp').default_capabilities()
-
-            -- Configure each server using nvim 0.11+ native API
-            for _, server in ipairs({ 'pyright', 'ts_ls', 'rust_analyzer', 'lua_ls' }) do
-                vim.lsp.config(server, { capabilities = capabilities })
-            end
-            vim.lsp.enable({ 'pyright', 'ts_ls', 'rust_analyzer', 'lua_ls' })
-
-            -- Keymaps applied when any LSP attaches to a buffer
-            vim.api.nvim_create_autocmd('LspAttach', {
-                callback = function(args)
-                    local opts = { buffer = args.buf }
-                    local map  = function(key, fn, desc)
-                        vim.keymap.set('n', key, fn, vim.tbl_extend('force', opts, { desc = desc }))
-                    end
-                    map('gd', vim.lsp.buf.definition, 'Go to definition')
-                    map('gD', vim.lsp.buf.declaration, 'Go to declaration')
-                    map('gr', vim.lsp.buf.references, 'Find references')
-                    map('K', vim.lsp.buf.hover, 'Hover docs')
-                    map('<leader>rn', vim.lsp.buf.rename, 'Rename symbol')
-                    map('<leader>ca', vim.lsp.buf.code_action, 'Code action')
-                    map('<leader>e', vim.diagnostic.open_float, 'Show diagnostic')
-                    map('[d', vim.diagnostic.goto_prev, 'Prev diagnostic')
-                    map(']d', vim.diagnostic.goto_next, 'Next diagnostic')
-                end,
-            })
-        end,
-    },
-
-    -- Autocompletion
-    {
-        'hrsh7th/nvim-cmp',
-        dependencies = {
-            'hrsh7th/cmp-nvim-lsp', -- LSP source
-            'hrsh7th/cmp-buffer',   -- buffer words
-            'hrsh7th/cmp-path',     -- filesystem paths
-        },
-        config = function()
-            local cmp = require('cmp')
-            cmp.setup({
-                mapping = cmp.mapping.preset.insert({
-                    ['<C-Space>'] = cmp.mapping.complete(),
-                    ['<CR>']      = cmp.mapping.confirm({ select = true }),
-                    ['<C-e>']     = cmp.mapping.abort(),
-                    ['<Tab>']     = cmp.mapping.select_next_item(),
-                    ['<S-Tab>']   = cmp.mapping.select_prev_item(),
-                }),
-                sources = cmp.config.sources({
-                    { name = 'nvim_lsp' },
-                    { name = 'buffer' },
-                    { name = 'path' },
-                }),
-            })
-        end,
-    },
-
     -- Statusline with mode colors
     {
         'nvim-lualine/lualine.nvim',
@@ -239,24 +167,13 @@ require('lazy').setup({
         end,
     },
 
-    -- Format on save
-    {
-        'stevearc/conform.nvim',
-        config = function()
-            require('conform').setup({
-                formatters_by_ft = {
-                    python          = { 'ruff_format' },
-                    typescript      = { 'prettier' },
-                    typescriptreact = { 'prettier' },
-                    javascript      = { 'prettier' },
-                    rust            = { 'rustfmt' },
-                },
-                format_on_save = {
-                    timeout_ms = 500,
-                    lsp_fallback = true,
-                },
-            })
-        end,
-    },
+}
 
-})
+-- LSP / completion / formatting stack is opt-in per machine. Enable it by
+-- setting NVIM_LSP=1 in the environment (e.g. in ~/.zshenv, which is not
+-- tracked by the dotfiles repo, so toggling produces no git diff).
+if os.getenv('NVIM_LSP') == '1' then
+    vim.list_extend(plugins, require('lsp'))
+end
+
+require('lazy').setup(plugins)

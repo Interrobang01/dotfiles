@@ -36,8 +36,21 @@ bindkey '^ ' forward-word           # Ctrl-Space goes forward
 
 source ~/.zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
-# Prompt — Starship handles everything
-eval "$(starship init zsh)"
+# Prompt: starship if enabled & installed, else a lightweight manual prompt.
+# Toggles are machine-local (set in ~/.zshenv, untracked -> no dotfiles diff):
+#   STARSHIP_ENABLE=0  skip starship entirely; use the manual prompt below.
+#   STARSHIP_NODE=0    keep starship but disable the slow shell-out modules
+#                      (nodejs, package) via ~/.config/starship-lite.toml.
+# Both default to on when unset. Benchmark with ./bench-prompt.zsh.
+if [[ "${STARSHIP_ENABLE:-1}" == 1 ]] && command -v starship >/dev/null 2>&1; then
+    if [[ "${STARSHIP_NODE:-1}" != 1 ]]; then
+        export STARSHIP_CONFIG="$HOME/.config/starship-lite.toml"
+    fi
+    eval "$(starship init zsh)"
+else
+    # cwd, then a prompt char that turns red on a nonzero exit status.
+    PROMPT='%F{cyan}%~%f %(?.%F{green}.%F{red})%#%f '
+fi
 
 export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow'
 export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
