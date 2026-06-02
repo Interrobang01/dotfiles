@@ -88,12 +88,12 @@ alias c='claude'
 
 claudesysprompt() {
     cat ~/Claude/ccsysprompt18052026.md \
-        ~/Claude/sysprompt08052026.md \
+        ~/Claude/sysprompt28052026.md \
         ~/Claude/memory08052026.md \
         ~/Claude/randyinfo.md
 }
 
-alias ccccc='claude --dangerously-skip-permissions --model opus --system-prompt "$(claudesysprompt)'
+alias ccccc='claude --dangerously-skip-permissions --model opus --system-prompt "$(claudesysprompt)"'
 
 # Auto-commit with Claude-generated message and push
 gac() {
