@@ -19,6 +19,7 @@ echo "Installing dependencies..."
 # build-essential: C compiler for treesitter parser compilation (:TSUpdate)
 # ripgrep/fd-find/bat/fzf: used by the rg-fzf widget and FZF_* env in .zshrc.
 #   (fd-find and bat install as `fdfind`/`batcat`; .aliases bridges the names.)
+$SUDO apt update
 $SUDO apt install -y zsh git stow tree curl build-essential \
     ripgrep fd-find bat fzf
 

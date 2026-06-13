@@ -16,6 +16,10 @@ alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo
 # colored GCC warnings and errors
 export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
 
+# let `claude --model claude-opus-4-1/4-0` reach the legacy snapshots instead of
+# being silently remapped to the current default
+export CLAUDE_CODE_DISABLE_LEGACY_MODEL_REMAP=1
+
 # copy input to clipboard
 alias clip="xclip -selection clipboard"
 
@@ -31,7 +35,7 @@ alias ~="cd ~" # `cd` is probably faster to type though
 alias -- -="cd -"
 
 # Shortcuts
-alias d="cd ~/Documents/Dropbox"
+alias d="cd ~/Documents"
 alias dl="cd ~/Downloads"
 alias dt="cd ~/Desktop"
 alias p="cd ~/Projects"
@@ -96,10 +100,28 @@ claudesysprompt() {
     cat ~/Claude/ccsysprompt18052026.md \
         ~/Claude/sysprompt28052026.md \
         ~/Claude/memory08052026.md \
-        ~/Claude/randyinfo.md
 }
 
+# claude code complete claudedotaisystemprompt concatenatedwithclaudedotaimemory
 alias ccccc='claude --dangerously-skip-permissions --model opus --system-prompt "$(claudesysprompt)"'
+
+# claude code, random model — no logging
+ccc() {
+    local opus_models=(claude-opus-4-0 claude-opus-4-1 claude-opus-4-5 claude-opus-4-6 claude-opus-4-7 claude-opus-4-8)
+    local sonnet_models=(claude-sonnet-4-5 claude-sonnet-4-6)
+    local chosen_model="$(shuf -n1 -e "${opus_models[@]}" "${sonnet_models[@]}")"
+    claude --model "$chosen_model" "$@"
+}
+
+# Claude Checktoseeifinotice Changesinthemodel Conjecture — random model with
+# timestamp+prompt log so parallel rounds can still be matched after the fact
+cccc() {
+    local opus_models=(claude-opus-4-0 claude-opus-4-1 claude-opus-4-5 claude-opus-4-6 claude-opus-4-7 claude-opus-4-8)
+    local sonnet_models=(claude-sonnet-4-5 claude-sonnet-4-6)
+    local chosen_model="$(shuf -n1 -e "${opus_models[@]}" "${sonnet_models[@]}")"
+    printf '%s\t%s\t%q\n' "$(date -Ins)" "$chosen_model" "$*" >> ~/Claude/chosen_model_log.md
+    claude --model "$chosen_model" "$@"
+}
 
 # Auto-commit with Claude-generated message and push
 gac() {

@@ -62,6 +62,10 @@ vim.opt.smartcase      = true
 vim.opt.startofline    = false
 vim.opt.shortmess:append('I')
 
+-- Wrap
+vim.opt.wrap = true
+vim.opt.linebreak = true
+
 
 -- ============================================================
 -- Keymaps

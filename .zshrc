@@ -85,8 +85,11 @@ npx()  { unset -f nvm node npm npx; source "$NVM_DIR/nvm.sh"; npx "$@" }
 
 # add to path
 export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/bin:$PATH"
 
 # nvim editor
 export EDITOR='nvim'
 
+# opencode
+export PATH=/home/interrobang/.opencode/bin:$PATH
 
