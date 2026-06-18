@@ -159,6 +159,17 @@ local plugins = {
         end,
     },
 
+    -- Markdown flow
+    {
+        'jakewvincent/mkdnflow.nvim',
+        ft = { 'markdown', 'rmd' }, -- Add custom filetypes here if configured
+        config = function()
+            require('mkdnflow').setup({
+                -- Your config
+            })
+        end
+    },
+
     -- Statusline with mode colors
     {
         'nvim-lualine/lualine.nvim',

@@ -59,14 +59,39 @@ export FZF_ALT_C_COMMAND='fd --type d --hidden --follow'
 # fzf
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
-# Ctrl-G: ripgrep + fzf, open match in nvim at the right line
+# Ctrl-G: ripgrep + fzf (fuzzy), open match in nvim at line + approx column
 rg-fzf() {
-  local match
-  match=$(rg --line-number --no-heading --color=always --smart-case '' | \
-          fzf --ansi --delimiter=: \
-              --preview 'bat --color=always {1} --highlight-line {2}' \
-              --preview-window 'up,60%,border-bottom')
-  [[ -n "$match" ]] && nvim "${match%%:*}" "+${${match#*:}%%:*}" -c "normal! zz"
+  local rg_cmd='rg --line-number --no-heading --color=always --smart-case'
+
+  local previewer
+  if   command -v bat    >/dev/null; then previewer='bat'
+  elif command -v batcat >/dev/null; then previewer='batcat'
+  fi
+  local preview="${previewer:+$previewer --color=always {1} --highlight-line {2}}"
+  : "${preview:=cat {1}}"   # fallback if neither exists
+
+  local out
+  out=$(eval "$rg_cmd ''" | \
+        fzf --ansi --delimiter=: --print-query \
+            --preview "$preview" \
+            --preview-window 'up,60%,border-bottom')
+
+  local query=${out%%$'\n'*}
+  local match=${out#*$'\n'}
+  [[ -z $match || $match == $query ]] && return   # esc / no selection
+
+  local file line text
+  IFS=: read -r file line text <<< "$match"
+
+  local col=1
+  if [[ -n $query ]]; then
+    local nee=${query[1]} hay=$text
+    [[ $query == ${query:l} ]] && { hay=${text:l}; nee=${nee:l}; }   # smart-case
+    local pre=${hay%%[$nee]*}
+    [[ $pre != $hay ]] && col=$(( ${#pre} + 1 ))
+  fi
+
+  nvim "$file" "+call cursor($line, $col)" -c "normal! zz"
 }
 zle -N rg-fzf
 bindkey '^[g' rg-fzf
