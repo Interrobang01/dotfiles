@@ -35,6 +35,34 @@ nvim_ok() {
     (( major > 0 || minor >= 11 ))
 }
 
+# Install a specific neovim release into ~/.local. Returns:
+#   0 on success, 2 if the binary installed but won't execute (glibc too old),
+#   1 on any other failure. The runtime check matters because Ubuntu 20.04 ships
+#   glibc 2.31 but recent nvim stable releases need 2.33+ -> SIGABRT on launch.
+install_nvim() {
+    local version=$1 arch=$2 tarball extract_dir TMP
+    if [ "$version" = "stable" ]; then
+        # New naming convention used by 0.11+ release tarballs.
+        tarball="nvim-linux-${arch}.tar.gz"
+        extract_dir="nvim-linux-${arch}"
+    else
+        # Pre-0.11 releases only published nvim-linux64.tar.gz (x86_64 only).
+        [ "$arch" = "x86_64" ] || return 1
+        tarball="nvim-linux64.tar.gz"
+        extract_dir="nvim-linux64"
+    fi
+    TMP="$(mktemp -d)"
+    curl -fsSL "https://github.com/neovim/neovim/releases/download/${version}/${tarball}" \
+        -o "$TMP/$tarball" || { rm -rf "$TMP"; return 1; }
+    mkdir -p "$HOME/.local" "$HOME/.local/bin"
+    rm -rf "$HOME/.local/$extract_dir"
+    tar -C "$HOME/.local" -xzf "$TMP/$tarball" || { rm -rf "$TMP"; return 1; }
+    ln -sf "$HOME/.local/$extract_dir/bin/nvim" "$HOME/.local/bin/nvim"
+    rm -rf "$TMP"
+    "$HOME/.local/bin/nvim" --version >/dev/null 2>&1 || return 2
+    return 0
+}
+
 if nvim_ok; then
     echo "neovim $(nvim --version | head -1) already new enough."
 else
@@ -44,16 +72,25 @@ else
         aarch64|arm64) NVIM_ARCH=arm64 ;;
         *) echo "ERROR: unsupported arch $(uname -m) for neovim install."; exit 1 ;;
     esac
-    NVIM_TARBALL="nvim-linux-${NVIM_ARCH}.tar.gz"
-    TMP="$(mktemp -d)"
-    curl -fsSL "https://github.com/neovim/neovim/releases/download/stable/${NVIM_TARBALL}" \
-        -o "$TMP/$NVIM_TARBALL"
-    mkdir -p "$HOME/.local" "$HOME/.local/bin"
-    tar -C "$HOME/.local" -xzf "$TMP/$NVIM_TARBALL"
-    ln -sf "$HOME/.local/nvim-linux-${NVIM_ARCH}/bin/nvim" "$HOME/.local/bin/nvim"
-    rm -rf "$TMP"
-    echo "neovim installed to ~/.local/bin/nvim (ensure ~/.local/bin is on PATH)."
+    install_nvim stable "$NVIM_ARCH"
+    rc=$?
+    if [ $rc -eq 2 ]; then
+        # stable installed but won't run (likely older glibc). v0.10.4 was the
+        # last release built against glibc 2.31 and still has every API the
+        # config uses (vim.uv, vim.treesitter.foldexpr).
+        echo "stable nvim won't run here (glibc too old?); falling back to v0.10.4..."
+        install_nvim v0.10.4 "$NVIM_ARCH" || { echo "ERROR: nvim install failed."; exit 1; }
+    elif [ $rc -ne 0 ]; then
+        echo "ERROR: nvim install failed."
+        exit 1
+    fi
+    echo "neovim $($HOME/.local/bin/nvim --version | head -1) installed to ~/.local/bin/nvim."
 fi
+
+# The new .zshrc puts ~/.local/bin on PATH, but bootstrap is running under bash
+# right now -- so without this export, later `nvim` invocations in this script
+# get "command not found".
+export PATH="$HOME/.local/bin:$PATH"
 
 # zsh-autosuggestions
 if [ ! -d "$HOME/.zsh/zsh-autosuggestions" ]; then
@@ -106,28 +143,55 @@ fi
 
 cd "$DOTFILES_DIR"
 
+STOW_FLAGS=(--target="$HOME"
+    --ignore='README.md' --ignore='bootstrap.sh' --ignore='bench-prompt.zsh')
+
 echo ""
 echo "Dry-run: checking for conflicts..."
 
-# --simulate does a dry run; exit code is nonzero if conflicts exist
-if ! stow --simulate --verbose --target="$HOME" \
-    --ignore='README.md' \
-    --ignore='bootstrap.sh' \
-    --ignore='bench-prompt.zsh' \
-    . 2>&1; then
+# Capture so we can parse out which files collided and offer to delete them.
+SIM_OUT="$(mktemp)"
+if ! stow --simulate --verbose "${STOW_FLAGS[@]}" . > "$SIM_OUT" 2>&1; then
+    cat "$SIM_OUT"
+    # stow prints conflicts as e.g.
+    #   * existing target is neither a link nor a directory: .zshrc
+    # Extract whatever follows the final ": " on those lines.
+    CONFLICTS=$(grep -E '^\s*\* existing target' "$SIM_OUT" \
+        | sed -E 's/.*: //' | sort -u)
+    rm -f "$SIM_OUT"
+    if [ -z "$CONFLICTS" ]; then
+        echo ""
+        echo "ERROR: stow failed but no conflicts parsed; resolve and re-run."
+        exit 1
+    fi
     echo ""
-    echo "ERROR: Conflicts detected above. Resolve them before running bootstrap again."
-    echo "Tip: back up or delete the conflicting files in ~ then re-run."
-    exit 1
+    echo "Conflicting paths in \$HOME (would be overwritten):"
+    while IFS= read -r f; do
+        ls -ld --color=auto "$HOME/$f" 2>/dev/null || echo "  $HOME/$f"
+    done <<< "$CONFLICTS"
+    echo ""
+    read -r -p "Delete these and retry stow? [y/N] " ans
+    if [[ ! "$ans" =~ ^[Yy] ]]; then
+        echo "Aborted. Back up/move the conflicts manually then re-run."
+        exit 1
+    fi
+    while IFS= read -r f; do
+        rm -rf "$HOME/$f"
+        echo "  rm $HOME/$f"
+    done <<< "$CONFLICTS"
+    echo ""
+    echo "Re-checking for conflicts..."
+    if ! stow --simulate --verbose "${STOW_FLAGS[@]}" . 2>&1; then
+        echo "ERROR: conflicts remain after deletion."
+        exit 1
+    fi
+else
+    rm -f "$SIM_OUT"
 fi
 
 echo ""
 echo "No conflicts. Stowing dotfiles..."
-stow --verbose --target="$HOME" \
-    --ignore='README.md' \
-    --ignore='bootstrap.sh' \
-    --ignore='bench-prompt.zsh' \
-    .
+stow --verbose "${STOW_FLAGS[@]}" .
 
 echo ""
 echo "Done! Open a new terminal (or run: exec zsh) to load the new shell."
@@ -143,5 +207,16 @@ mkdir -p ~/.vim/backups ~/.vim/swaps ~/.vim/undo
 
 #: }}}
 
-echo "Starting neovim..."
-nvim
+echo "Syncing neovim plugins (headless)..."
+# Headless so lazy.nvim installs/updates plugins and exits instead of blocking
+# on an interactive editor. PATH already has ~/.local/bin from the install step.
+nvim --headless "+Lazy! sync" +qa
+
+# If we're actually attached to a terminal (not piped under `bash -s` from rp),
+# drop the user straight into zsh so they don't have to `exec zsh` themselves.
+# `-t 0 && -t 1` skips this when stdin/stdout are pipes (the rp bootstrap path).
+if [ -t 0 ] && [ -t 1 ] && [ "$(basename "${SHELL:-}")" != "zsh" ]; then
+    echo ""
+    echo "Launching zsh..."
+    exec "$ZSH_PATH" -l
+fi
