@@ -98,14 +98,47 @@ alias path='echo -e ${PATH//:/\\n}'
 #: }}}
 
 
+encode() {
+    local input="$1"
+    local output="${2:-${input%.*}.mp4}"
+    ffmpeg -i "$input" -c:v libx264 -c:a aac "$output"
+}
+
 #: Claude {{{
 
 alias c='claude'
 
 claudesysprompt() {
     cat ~/Claude/ccsysprompt18052026.md \
-        ~/Claude/sysprompt28052026.md \
+        ~/Claude/sysprompt.md \
         ~/Claude/memory08052026.md
+
+    # Live environment block, regenerated each invocation so the model gets the
+    # real working directory, git status, and platform it's launched in.
+    local is_git_repo=No
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then is_git_repo=Yes; fi
+    printf '\n<env>\nWorking directory: %s\nIs directory a git repo: %s\nPlatform: %s\n</env>\n' \
+        "$PWD" "$is_git_repo" "$(uname -s | tr '[:upper:]' '[:lower:]')"
+
+    # A little something for the model to enjoy (may be multi-line).
+    if command -v fortune >/dev/null 2>&1; then
+        # fortune-mod has no seed option, so cache the first fortune picked on
+        # each calendar day and reuse it for every invocation that day.
+        local fortune_day=$(date +%F)
+        local fortune_cache="$HOME/.cache/claude-fortune"
+        local cached_fortune=''
+        if [[ -f "$fortune_cache" && "$(sed -n '1p' "$fortune_cache")" == "$fortune_day" ]]; then
+            cached_fortune=$(sed '1d' "$fortune_cache")
+        else
+            cached_fortune=$(fortune)
+            mkdir -p "$HOME/.cache"
+            {
+                printf '%s\n' "$fortune_day"
+                printf '%s\n' "$cached_fortune"
+            } >| "$fortune_cache"
+        fi
+        printf "\nThis session's fortune:\n%s\n" "$cached_fortune"
+    fi
 }
 
 # claude code complete claudedotaisystemprompt concatenatedwithclaudedotaimemory
