@@ -175,3 +175,5 @@ gac() {
 # vim: foldmethod=marker
 
 alias k='kitten ssh' # kitty 😼
+
+alias sex='shuf -n1 -e male female'
