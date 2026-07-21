@@ -173,3 +173,5 @@ gac() {
 #: }}}
 
 # vim: foldmethod=marker
+
+alias k='kitten ssh' # kitty 😼
