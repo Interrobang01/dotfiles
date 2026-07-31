@@ -109,10 +109,6 @@ encode() {
 alias c='claude'
 
 claudesysprompt() {
-    cat ~/Claude/ccsysprompt18052026.md \
-        ~/Claude/sysprompt.md \
-        ~/Claude/memory08052026.md
-
     # Live environment block, regenerated each invocation so the model gets the
     # real working directory, git status, and platform it's launched in.
     local is_git_repo=No
@@ -137,15 +133,30 @@ claudesysprompt() {
                 printf '%s\n' "$cached_fortune"
             } >| "$fortune_cache"
         fi
-        printf "\nThis session's fortune:\n%s\n" "$cached_fortune"
+        printf "\nInstances need entropy to differentiate from the greater LLM supermind. To that end, today's fortune:\n%s\n" "$cached_fortune"
     fi
+}
+claudeworkprompt() {
+    cat ~/Claude/ccsysprompt18052026.md \
+        ~/Claude/sysprompt.md
+
+    claudesysprompt
+}
+claudechatprompt() {
+    cat ~/Claude/sysprompt.md \
+        ~/Claude/memory08052026.md
+
+    claudesysprompt
 }
 
 # claude code complete claudedotaisystemprompt concatenatedwithclaudedotaimemory
-alias ccccc='claude --dangerously-skip-permissions --model opus --system-prompt "$(claudesysprompt)"'
+alias ccccc='claude --dangerously-skip-permissions --model opus --system-prompt "$(claudechatprompt)"'
+
+# claude code complete claudedotaisystemprompt
+alias cccc='claude --dangerously-skip-permissions --model opus --system-prompt "$(claudeworkprompt)"'
 
 # claude code, random model — no logging
-ccc() {
+cc() {
     local opus_models=(claude-opus-4-1 claude-opus-4-5 claude-opus-4-6 claude-opus-4-7 claude-opus-4-8)
     local sonnet_models=(claude-sonnet-4-5 claude-sonnet-4-6)
     # local fable_models=(claude-fable-5)
@@ -153,9 +164,9 @@ ccc() {
     claude --model "$chosen_model" "$@"
 }
 
-# Claude Checktoseeifinotice Changesinthemodel Conjecture — random model with
+# Claude Checktoseeifinotice Changesinthemodel — random model with
 # timestamp+prompt log so parallel rounds can still be matched after the fact
-cccc() {
+ccc() {
     local opus_models=(claude-opus-4-0 claude-opus-4-1 claude-opus-4-5 claude-opus-4-6 claude-opus-4-7 claude-opus-4-8)
     local sonnet_models=(claude-sonnet-4-5 claude-sonnet-4-6)
     local chosen_model="$(shuf -n1 -e "${opus_models[@]}" "${sonnet_models[@]}")"

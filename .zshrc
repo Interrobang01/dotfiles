@@ -21,6 +21,31 @@ setopt autocd # type dir name to cd to it
 
 # Emacs mode
 bindkey -e
+
+# Drop '/' from WORDCHARS so word-motion (Ctrl-W, Alt-B/F, Alt-D, ...) treats
+# path segments as separate words instead of the whole path as one blob --
+# e.g. Ctrl-W on /home/interrobang/foo/bar deletes just "bar", not the lot.
+WORDCHARS=${WORDCHARS//\//}
+
+# Ctrl-Alt-W/F/B: the old whole-path behavior, kept around for when you want
+# to kill/jump over an entire path in one go instead of one segment at a
+# time. `local WORDCHARS=...` re-widens it (adds '/' back) only for the
+# duration of that one widget call, then it reverts to the segment-aware
+# default above.
+path-agnostic-backward-kill-word() { local WORDCHARS="$WORDCHARS/"; zle backward-kill-word }
+path-agnostic-forward-word()       { local WORDCHARS="$WORDCHARS/"; zle forward-word }
+path-agnostic-backward-word()      { local WORDCHARS="$WORDCHARS/"; zle backward-word }
+zle -N path-agnostic-backward-kill-word
+zle -N path-agnostic-forward-word
+zle -N path-agnostic-backward-word
+# Legacy terminal encoding: Ctrl-Alt-<key> = ESC followed by the Ctrl-<key>
+# control byte. This is what Kitty sends by default (it only switches to its
+# richer keyboard protocol for apps that opt in, which zsh doesn't). If a
+# chord below doesn't fire, run `cat -v`, press it, and match the bindkey
+# sequence to whatever bytes show up instead.
+bindkey '^[^W' path-agnostic-backward-kill-word   # Ctrl-Alt-W
+bindkey '^[^F' path-agnostic-forward-word         # Ctrl-Alt-F
+bindkey '^[^B' path-agnostic-backward-word        # Ctrl-Alt-B
 autoload -Uz edit-command-line
 zle -N edit-command-line
 bindkey '^X^E' edit-command-line     # emacs-style chord
@@ -59,7 +84,7 @@ export FZF_ALT_C_COMMAND='fd --type d --hidden --follow'
 # fzf
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
-# Ctrl-G: ripgrep + fzf (fuzzy), open match in nvim at line + approx column
+# Alt-G: ripgrep + fzf (fuzzy), open match in nvim at line + approx column
 rg-fzf() {
   local rg_cmd='rg --line-number --no-heading --color=always --smart-case'
 
@@ -116,5 +141,6 @@ export PATH="$HOME/bin:$PATH"
 export EDITOR='nvim'
 
 # opencode
-export PATH=/home/interrobang/.opencode/bin:$PATH
+export PATH="$HOME.opencode/bin:$PATH"
 
+export CLAUDE_CODE_DISABLE_LEGACY_MODEL_REMAP=1

@@ -156,6 +156,15 @@ local plugins = {
         'MeanderingProgrammer/render-markdown.nvim',
         config = function()
             require('render-markdown').setup {}
+
+            -- Keep literal Markdown delimiters visible: shell-style paths and
+            -- identifiers such as sgtr_em or ~$2.4/run should not disappear.
+            vim.api.nvim_create_autocmd('FileType', {
+                pattern = { 'markdown', 'rmd' },
+                callback = function()
+                    vim.opt_local.conceallevel = 0
+                end,
+            })
         end,
     },
 

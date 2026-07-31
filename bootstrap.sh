@@ -16,12 +16,23 @@ fi
 #: Dependencies {{{
 
 echo "Installing dependencies..."
-# build-essential: C compiler for treesitter parser compilation (:TSUpdate)
-# ripgrep/fd-find/bat/fzf: used by the rg-fzf widget and FZF_* env in .zshrc.
-#   (fd-find and bat install as `fdfind`/`batcat`; .aliases bridges the names.)
-$SUDO apt update
-$SUDO apt install -y zsh git stow tree curl build-essential \
-    ripgrep fd-find bat fzf
+# build-essential/base-devel: C compiler for treesitter parser compilation (:TSUpdate)
+# ripgrep/fd/bat: used by the rg-fzf widget and FZF_* env in .zshrc.
+#   (On apt, fd-find and bat install as `fdfind`/`batcat`; .aliases bridges the names.)
+# fzf is deliberately NOT installed here -- see the dedicated fzf install step
+# below, which is needed for working shell integration (Ctrl-R/Ctrl-T/Alt-C).
+if command -v apt &>/dev/null; then
+    $SUDO apt update
+    $SUDO apt install -y zsh git stow tree curl build-essential \
+        ripgrep fd-find bat
+elif command -v xbps-install &>/dev/null; then
+    $SUDO xbps-install -S
+    $SUDO xbps-install -y zsh git stow tree curl base-devel \
+        ripgrep fd bat
+else
+    echo "ERROR: no supported package manager found (apt, xbps-install)." >&2
+    exit 1
+fi
 
 # Neovim: do NOT use apt — its package is far too old for this config, which
 # uses 0.11+ APIs (vim.lsp.config/enable, vim.uv, vim.treesitter.foldexpr).
@@ -91,6 +102,21 @@ fi
 # right now -- so without this export, later `nvim` invocations in this script
 # get "command not found".
 export PATH="$HOME/.local/bin:$PATH"
+
+# fzf: installed from the upstream repo rather than the distro package.
+# apt/xbps package versions lag badly (Mint 21.3's apt fzf is 0.29) and are too
+# old for `fzf --zsh`/`--zsh` shell-integration (added in 0.48); the apt
+# package also doesn't ship ~/.fzf.zsh at all (only unsourced example scripts
+# under /usr/share/doc/fzf), so .zshrc's `source ~/.fzf.zsh` silently no-ops
+# and Ctrl-R/Ctrl-T/Alt-C never get wired up. The upstream installer script
+# always writes ~/.fzf.zsh and gives a current fzf binary in ~/.fzf/bin.
+if [ ! -d "$HOME/.fzf" ]; then
+    echo "Installing fzf (upstream installer, for shell integration)..."
+    git clone --depth 1 https://github.com/junegunn/fzf.git "$HOME/.fzf"
+    "$HOME/.fzf/install" --key-bindings --completion --no-update-rc --no-bash --no-fish
+else
+    echo "fzf already installed via upstream installer."
+fi
 
 # zsh-autosuggestions
 if [ ! -d "$HOME/.zsh/zsh-autosuggestions" ]; then
