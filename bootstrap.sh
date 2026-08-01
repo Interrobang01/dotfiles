@@ -169,7 +169,7 @@ fi
 
 cd "$DOTFILES_DIR"
 
-STOW_FLAGS=(--target="$HOME"
+STOW_FLAGS=(--target="$HOME" --no-folding
     --ignore='README.md' --ignore='bootstrap.sh' --ignore='bench-prompt.zsh')
 
 echo ""
