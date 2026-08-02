@@ -126,8 +126,7 @@ claudesysprompt() {
     fi
 }
 claudeworkprompt() {
-    cat ~/Claude/ccsysprompt18052026.md \
-        ~/Claude/sysprompt.md
+    cat ~/Claude/sysprompt.md
 
     claudesysprompt
 }
@@ -142,7 +141,7 @@ claudechatprompt() {
 alias ccccc='claude --dangerously-skip-permissions --model opus --system-prompt "$(claudechatprompt)"'
 
 # claude code complete claudedotaisystemprompt
-alias cccc='claude --dangerously-skip-permissions --model opus --system-prompt "$(claudeworkprompt)"'
+alias cccc='claude --dangerously-skip-permissions --model opus --append-system-prompt "$(claudeworkprompt)"'
 
 # claude code, random model — no logging
 cc() {
