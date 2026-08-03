@@ -122,7 +122,7 @@ claudesysprompt() {
                 printf '%s\n' "$cached_fortune"
             } >| "$fortune_cache"
         fi
-        printf "\nInstances need entropy to differentiate from the greater LLM supermind. To that end, today's fortune:\n%s\n" "$cached_fortune"
+        printf "\nInstances need entropy to differentiate from the greater LLM hyperobject. To that end, today's fortune:\n%s\n" "$cached_fortune"
     fi
 }
 claudeworkprompt() {
