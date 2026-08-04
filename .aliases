@@ -98,50 +98,39 @@ encode() {
 alias c='claude'
 
 claudesysprompt() {
-    # Live environment block, regenerated each invocation so the model gets the
-    # real working directory, git status, and platform it's launched in.
+    # Live environment block
+    # cwd, git status, and current platform
     local is_git_repo=No
     if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then is_git_repo=Yes; fi
     printf '\n<env>\nWorking directory: %s\nIs directory a git repo: %s\nPlatform: %s\n</env>\n' \
         "$PWD" "$is_git_repo" "$(uname -s | tr '[:upper:]' '[:lower:]')"
 
-    # A little something for the model to enjoy (may be multi-line).
-    if command -v fortune >/dev/null 2>&1; then
+    # Fortune
+    if command -v fortune >/dev/null 2>&1 && [ -f ~/bin/oblique ] && [ -f ~/bin/oblique.dat ]; then
         # fortune-mod has no seed option, so cache the first fortune picked on
         # each calendar day and reuse it for every invocation that day.
         local fortune_day=$(date +%F)
-        local fortune_cache="$HOME/.cache/claude-fortune"
+        local fortune_cache="$HOME/.cache/agent-fortune"
         local cached_fortune=''
         if [[ -f "$fortune_cache" && "$(sed -n '1p' "$fortune_cache")" == "$fortune_day" ]]; then
             cached_fortune=$(sed '1d' "$fortune_cache")
         else
-            cached_fortune=$(fortune)
+            cached_fortune=$(fortune ~/bin/oblique)
             mkdir -p "$HOME/.cache"
             {
                 printf '%s\n' "$fortune_day"
                 printf '%s\n' "$cached_fortune"
             } >| "$fortune_cache"
         fi
-        printf "\nInstances need entropy to differentiate from the greater LLM hyperobject. To that end, today's fortune:\n%s\n" "$cached_fortune"
+        printf "\nToday's oblique strategy:\n%s\n" "\"$cached_fortune\""
     fi
-}
-claudeworkprompt() {
-    cat ~/Claude/sysprompt.md
-
-    claudesysprompt
-}
-claudechatprompt() {
-    cat ~/Claude/sysprompt.md \
-        ~/Claude/memory08052026.md
-
-    claudesysprompt
 }
 
 # claude code complete claudedotaisystemprompt concatenatedwithclaudedotaimemory
-alias ccccc='claude --dangerously-skip-permissions --model opus --system-prompt "$(claudechatprompt)"'
+alias ccccc='claude --dangerously-skip-permissions --model opus --system-prompt "$(cat ~/Claude/sysprompt.md) $(cat ~/Claude/memory08052026.md) $(claudesysprompt)"'
 
 # claude code complete claudedotaisystemprompt
-alias cccc='claude --dangerously-skip-permissions --model opus --append-system-prompt "$(claudeworkprompt)"'
+alias cccc='claude --dangerously-skip-permissions --model opus --append-system-prompt "$(cat ~/Claude/sysprompt.md) $(claudesysprompt)"'
 
 # claude code, random model — no logging
 cc() {
