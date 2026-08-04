@@ -165,3 +165,11 @@ gac() {
 alias k='kitten ssh' # kitty 😼
 
 alias sex='shuf -n1 -e male female'
+
+# Got got?
+got() {
+    git add -A
+    git commit -m "$@"
+    git push
+}
+
