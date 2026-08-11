@@ -1,19 +1,3 @@
--- Colemak remappings: swap hnei <-> hjkl
--- This places movement keys where hjkl sit on a QWERTY layout.
---
--- Movement (Colemak hnei -> QWERTY hjkl):
---   n -> down  (was j)
---   e -> up    (was k)
---   i -> right (was l)
---
--- Displaced keys get the original hnei functions:
---   j -> next search match      (was n)
---   k -> end of word            (was e)
---   l -> insert mode            (was i)
---
--- h -> left stays unchanged in both layouts.
-
-
 -- ============================================================
 -- Options
 -- ============================================================
@@ -70,6 +54,56 @@ vim.opt.linebreak = true
 -- ============================================================
 -- Keymaps
 -- ============================================================
+
+-- ------------------------------------------------------------
+-- Prose buffers: make motion follow *visual* lines
+-- ------------------------------------------------------------
+-- `wrap` + `linebreak` are on globally, so a paragraph is one logical line
+-- spanning many screen rows. Unmapped j/k step by logical line, i.e. they
+-- jump the whole paragraph and vertical movement *inside* a paragraph is
+-- unavailable. Same for 0/$, which go to the paragraph's ends rather than
+-- the visible row's.
+--
+-- The v:count guard keeps counts operating on real lines, so `5j` still
+-- means what relativenumber says it means. Bare j/k move visually.
+local prose_ft = { 'markdown', 'rmd', 'text', 'tex', 'plaintex', 'textile', 'mail' }
+
+vim.api.nvim_create_autocmd('FileType', {
+    pattern = prose_ft,
+    callback = function(ev)
+        local function map(lhs, rhs, expr)
+            vim.keymap.set({ 'n', 'x' }, lhs, rhs,
+                { buffer = ev.buf, expr = expr or false, silent = true })
+        end
+
+        -- Swap, don't override: the g-prefixed forms keep the *logical*-line
+        -- behaviour so it stays reachable. `g$` = true end of paragraph.
+        map('j', "v:count == 0 ? 'gj' : 'j'", true)
+        map('k', "v:count == 0 ? 'gk' : 'k'", true)
+        map('0', 'g0')
+        map('$', 'g$')
+        map('^', 'g^')
+        map('gj', 'j')
+        map('gk', 'k')
+        map('g0', '0')
+        map('g$', '$')
+        map('g^', '^')
+
+        -- Wrapped rows keep the paragraph's indent instead of starting at col 0.
+        vim.opt_local.breakindent = true
+
+        -- Better sentence objects/motions (as/is, (, ), g(, g)) from
+        -- vim-textobj-sentence: handles abbreviations like "Dr." and "e.g."
+        -- that vim's native sentence regex splits on incorrectly.
+        --
+        -- Guard on the plugin's own load flag, NOT on exists('*textobj#...'):
+        -- checking for an autoload function does not trigger the autoload, so
+        -- that test reads 0 until something has already called into the file.
+        if vim.g.loaded_textobj_sentence == 1 then
+            pcall(vim.fn['textobj#sentence#init'])
+        end
+    end,
+})
 
 -- Strip trailing whitespace (<leader>ss)
 vim.keymap.set('n', '<leader>ss', function()
@@ -128,23 +162,25 @@ vim.opt.rtp:prepend(lazypath)
 -- C compiler for treesitter parsers (installed by bootstrap.sh).
 local plugins = {
 
-    -- Treesitter: syntax highlighting and code folding.
-    -- Pinned to the `master` branch: its API (nvim-treesitter.configs) is what
-    -- this config targets. The `main` branch is a rewrite with a different,
-    -- incompatible setup API.
+    -- Treesitter: parser installer + queries. Now on the `main` branch (the
+    -- current rewrite targeting Neovim 0.12). Highlighting/folding are native
+    -- on 0.12, so this no longer needs the old nvim-treesitter.configs API.
+    -- Requires tree-sitter-cli in PATH.
     {
         'nvim-treesitter/nvim-treesitter',
-        branch = 'master',
+        lazy = false, -- main branch does not support lazy-loading
         build = ':TSUpdate',
         config = function()
-            require('nvim-treesitter.configs').setup({
-                ensure_installed = {
-                    'markdown', 'markdown_inline',
-                    'python', 'typescript', 'tsx', 'rust', 'lua',
-                },
-                auto_install = true, -- install missing parsers when opening a file
-                highlight = { enable = true },
-            })
+            require('nvim-treesitter').setup {
+                install_dir = vim.fn.stdpath('data') .. '/site',
+            }
+            require('nvim-treesitter').install {
+                'markdown', 'markdown_inline',
+                'python', 'typescript', 'tsx', 'rust', 'lua',
+                -- fenced-code-block languages; main branch has no auto_install,
+                -- so add any you use (e.g. bash for ```sh) here or via :TSInstall.
+                'bash',
+            }
             vim.opt.foldmethod = 'expr'
             vim.opt.foldexpr   = 'v:lua.vim.treesitter.foldexpr()'
             vim.opt.foldenable = false -- open all folds by default
@@ -188,6 +224,75 @@ local plugins = {
                     theme = 'auto',
                 },
             })
+        end,
+    },
+
+    -- Label-based jumps: `s` + 2 chars, then a label, to reach any visible
+    -- position. Composes with operators (`dsth` = delete to that spot) and
+    -- works as a visual-mode target. This is the piece that makes keyboard
+    -- motion beat pointing for arbitrary targets.
+    --
+    -- Costs: normal/visual `s` (== `cl` / `c`, use those) and normal `S`
+    -- (== `cc`). `S` here is treesitter-node select: press repeatedly to
+    -- grow the selection outward through the syntax tree.
+    {
+        'folke/flash.nvim',
+        event = 'VeryLazy',
+        opts = {
+            -- Labels are typed on the physical layout in use, so this is the
+            -- Colemak home row first, then the easiest remaining keys.
+            labels = 'arstdhneiogmvcxzwfpblu',
+            modes = {
+                -- Don't hijack f/F/t/T or `/`; keep those behaving normally.
+                char = { enabled = false },
+                search = { enabled = false },
+            },
+        },
+        keys = {
+            { 's', mode = { 'n', 'x', 'o' }, function() require('flash').jump() end,       desc = 'Flash jump' },
+            { 'S', mode = { 'n', 'x', 'o' }, function() require('flash').treesitter() end, desc = 'Flash treesitter select' },
+        },
+    },
+
+    -- A real sentence text object. The sentence is the unit of prose revision
+    -- (`das` kill, `cas` rewrite, `yas`+`p` duplicate-and-vary), and vim ships
+    -- nothing between word and paragraph. Enabled per-filetype by the prose
+    -- autocmd above; both are tiny vimscript plugins, so load eagerly rather
+    -- than fight lazy-load ordering with the autocmd.
+    { 'kana/vim-textobj-user',            lazy = false },
+    { 'preservim/vim-textobj-sentence',   lazy = false, dependencies = { 'kana/vim-textobj-user' } },
+
+    -- Assorted extra text objects. Most useful here: iq/aq (any quote type,
+    -- including “smart” quotes), io/ao (any bracket), iS/aS (subword, stops at
+    -- camelCase and snake_case boundaries), i_/a_ (line, charwise), iF/aF
+    -- (filepath), gG (entire buffer).
+    {
+        'chrisgrieser/nvim-various-textobjs',
+        lazy = false, -- required: default keymaps aren't applied when lazy-loaded
+        opts = {
+            keymaps = {
+                useDefaults = true,
+                -- Defaults claim some bare letters in operator-pending *and*
+                -- visual mode, where they'd shadow commands worth keeping:
+                --   n  next search match (extends a visual selection)
+                --   !  filter selection through an external command
+                --   C  R  change the selected lines
+                --   r  replace every selected char
+                --   .  |  low value as objects, and `.` is muscle-memorised
+                disabledDefaults = { 'n', '!', 'C', 'R', 'r', '.', '|' },
+            },
+        },
+        config = function(_, opts)
+            require('various-textobjs').setup(opts)
+
+            -- Recover the two useful objects disabled above, in
+            -- operator-pending mode only, where nothing collides.
+            vim.keymap.set('o', 'r', function()
+                require('various-textobjs').restOfParagraph()
+            end, { desc = 'rest of paragraph' })
+            vim.keymap.set('o', 'n', function()
+                require('various-textobjs').nearEoL()
+            end, { desc = 'to near end of line' })
         end,
     },
 
