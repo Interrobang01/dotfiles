@@ -5,6 +5,14 @@
 -- some servers need a C compiler). It is opt-in per machine via the
 -- NVIM_LSP env var (see init.lua). Returns a list of lazy.nvim specs.
 
+local server_list = {
+    'pyright',       -- Python
+    'ts_ls',         -- TypeScript / JavaScript
+    'rust_analyzer', -- Rust
+    'lua_ls',        -- Lua
+    'clangd',        -- C++
+}
+
 return {
 
     -- Mason: installs language servers, linters, formatters
@@ -25,22 +33,67 @@ return {
         },
         config = function()
             require('mason-lspconfig').setup({
-                ensure_installed = {
-                    'pyright',       -- Python
-                    'ts_ls',         -- TypeScript / JavaScript
-                    'rust_analyzer', -- Rust
-                    'lua_ls',        -- Lua
-                },
+                ensure_installed = server_list,
                 automatic_installation = true,
             })
 
             local capabilities = require('cmp_nvim_lsp').default_capabilities()
 
             -- Configure each server using nvim 0.11+ native API
-            for _, server in ipairs({ 'pyright', 'ts_ls', 'rust_analyzer', 'lua_ls' }) do
+            for _, server in ipairs(server_list) do
                 vim.lsp.config(server, { capabilities = capabilities })
             end
-            vim.lsp.enable({ 'pyright', 'ts_ls', 'rust_analyzer', 'lua_ls' })
+            vim.lsp.enable(server_list)
+
+            -- clangd looks for compile_commands.json only in each ancestor
+            -- directory and its build/, but Qt Creator (and multi-config
+            -- setups generally) configure into build/<kit>-<config>/. Rather
+            -- than symlinking per project, find it here: walk up from the
+            -- file, and at the first project that has no database where
+            -- clangd would look but does have build/*/compile_commands.json,
+            -- point clangd at the newest one -- i.e. the configuration most
+            -- recently (re)configured. Where clangd would find its own, stay
+            -- out of the way.
+            local function compdb_dir(file)
+                for dir in vim.fs.parents(file) do
+                    if vim.uv.fs_stat(dir .. '/compile_commands.json')
+                        or vim.uv.fs_stat(dir .. '/build/compile_commands.json') then
+                        return nil
+                    end
+                    local best, best_mtime
+                    for _, f in ipairs(vim.fn.glob(dir .. '/build/*/compile_commands.json', false, true)) do
+                        local mtime = vim.uv.fs_stat(f).mtime.sec
+                        if not best_mtime or mtime > best_mtime then best, best_mtime = f, mtime end
+                    end
+                    if best then return vim.fs.dirname(best) end
+                end
+            end
+
+            vim.lsp.config('clangd', {
+                -- A function cmd runs at each server start, so a freshly
+                -- configured build dir is picked up by :lsp restart. The
+                -- current buffer is the one whose FileType started it.
+                cmd = function(dispatchers, config)
+                    local cmd = { 'clangd' }
+                    local dir = compdb_dir(vim.api.nvim_buf_get_name(0))
+                    if dir then table.insert(cmd, '--compile-commands-dir=' .. dir) end
+                    return vim.lsp.rpc.start(cmd, dispatchers, {
+                        cwd = config.cmd_cwd, env = config.cmd_env, detached = config.detached,
+                    })
+                end,
+            })
+
+            -- Servers from the system package manager rather than mason, so
+            -- not in server_list (mason would download a second copy).
+            -- tinymist: Typst. formatterMode turns on its built-in typstyle,
+            -- which conform's LSP fallback then runs on save.
+            vim.lsp.config('tinymist', {
+                capabilities = capabilities,
+                settings = { formatterMode = 'typstyle' },
+            })
+            if vim.fn.executable('tinymist') == 1 then
+                vim.lsp.enable('tinymist')
+            end
 
             -- Keymaps applied when any LSP attaches to a buffer
             vim.api.nvim_create_autocmd('LspAttach', {
@@ -67,9 +120,10 @@ return {
     {
         'hrsh7th/nvim-cmp',
         dependencies = {
-            'hrsh7th/cmp-nvim-lsp', -- LSP source
-            'hrsh7th/cmp-buffer',   -- buffer words
-            'hrsh7th/cmp-path',     -- filesystem paths
+            'hrsh7th/cmp-nvim-lsp',  -- LSP source
+            'hrsh7th/cmp-buffer',    -- buffer words
+            'hrsh7th/cmp-path',      -- filesystem paths
+            'windwp/nvim-autopairs', -- auto pair delimiters on function accept
         },
         config = function()
             local cmp = require('cmp')
@@ -87,6 +141,7 @@ return {
                     { name = 'path' },
                 }),
             })
+            cmp.event:on('confirm_done', require('nvim-autopairs.completion.cmp').on_confirm_done())
         end,
     },
 
@@ -101,10 +156,12 @@ return {
                     typescriptreact = { 'prettier' },
                     javascript      = { 'prettier' },
                     rust            = { 'rustfmt' },
+                    c               = { 'clang_format' },
+                    cpp             = { 'clang_format' },
                 },
                 format_on_save = {
                     timeout_ms = 500,
-                    lsp_fallback = true,
+                    lsp_format = 'fallback',
                 },
             })
         end,

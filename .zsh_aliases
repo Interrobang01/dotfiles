@@ -9,6 +9,7 @@ alias -g L='| less'
 #: Suffix aliases {{{
 
 alias -s pdf=zathura
+alias -s md=nvim
 _show_image() { kitten icat "$@" }
 alias -s {png,jpg,jpeg}=_show_image
 
